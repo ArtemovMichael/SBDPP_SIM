@@ -1,0 +1,21 @@
+# Build artifacts
+build/
+*.so
+*.pyd
+
+# Python cache
+__pycache__/
+
+# Virtual environment
+.venv
+
+# Cython generated files
+/simulation/SpatialBirthDeathWrapper.cpp
+*.html
+
+# Data files
+*.mp4
+
+# Tools
+.clang-format
+.clang-tidy
