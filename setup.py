@@ -1,6 +1,6 @@
 from setuptools import setup, Extension
-from distutils.ccompiler import new_compiler
-from distutils.errors import DistutilsPlatformError
+from setuptools._distutils.ccompiler import new_compiler
+from setuptools._distutils.errors import DistutilsPlatformError
 from Cython.Build import cythonize
 import sys
 
@@ -26,7 +26,8 @@ extensions = [
         sources=["simulation/SpatialBirthDeathWrapper.pyx",
                  "simulation/SpatialBirthDeath.cpp"],
         language="c++",
-        include_dirs=["include"],
+        # include_dirs=["include"],
+        include_dirs=[".", "include"],
         extra_compile_args=compile_args
     )
 ]
