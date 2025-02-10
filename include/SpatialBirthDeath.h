@@ -1,6 +1,5 @@
-// #ifndef SPATIAL_BIRTH_DEATH_H
-// #define SPATIAL_BIRTH_DEATH_H
-#pragma once
+#ifndef SPATIAL_BIRTH_DEATH_H
+#define SPATIAL_BIRTH_DEATH_H
 
 /**
  * \file SpatialBirthDeath.h
@@ -346,4 +345,4 @@ extern template struct Cell<1>;
 extern template struct Cell<2>;
 extern template struct Cell<3>;
 
-// #endif // SPATIAL_BIRTH_DEATH_H
+#endif  // SPATIAL_BIRTH_DEATH_H

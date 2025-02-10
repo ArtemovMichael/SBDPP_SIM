@@ -19,12 +19,13 @@ Suppose your directory looks like this:
 ```
 SBDPP_sim/
 ├── include/
-│    └── SpatialBirthDeath.h        # C++ header
+│   └── SpatialBirthDeath.h      # Заголовочные файлы
+├── src/
+│   └── SpatialBirthDeath.cpp    # Исходный C++ код
 ├── simulation/
-│    ├── SpatialBirthDeath.cpp      # C++ source
-│    ├── SpatialBirthDeathWrapper.pyx
-│    └── __init__.py
-├── setup.py
+│   ├── SpatialBirthDeathWrapper.pyx  # Cython-обёртка
+│   └── __init__.py              # Инициализация Python-модуля
+├── setup.py                     # Конфигурация сборки
 ├── requirements.txt
 └── README.md   # <--- this file
 ```
