@@ -1,93 +1,72 @@
 /**
- * \file SpatialBirthDeath.cpp
- * \brief Example refactored source for a spatial birth-death point process,
- *        using spawn_at / kill_at instead of placeInitialPopulations / computeInitialDeathRates.
- *
- * \date 2025-01-20
+ * @file SpatialBirthDeath.cpp
+ * @brief Implementation of spatial birth-death point process simulator
  */
 
-#include <iostream>
-#include <cmath>
-#include <random>
-#include <vector>
-#include <array>
-#include <chrono>
-#include <algorithm>  // for std::max, std::min
 #include "../include/SpatialBirthDeath.h"
 
-double linearInterpolate(const std::vector<double> &xgdat, const std::vector<double> &gdat,
-                         double x) {
-    auto i = std::lower_bound(xgdat.begin(), xgdat.end(), x);  // Nearest-above index
-    size_t k = i - xgdat.begin();
+double linearInterpolate(const std::vector<double> &xdat, const std::vector<double> &ydat,
+                         double point_x) {
+    auto i = std::lower_bound(xdat.begin(), xdat.end(), point_x);
+    const size_t k = i - xdat.begin();
+    const size_t l = k ? k - 1 : 0; 
 
-    size_t l = k ? k - 1 : 0;  // Nearest-below index
+    const double x1 = xdat[l], x2 = xdat[k];
+    const double y1 = ydat[l], y2 = ydat[k];
 
-    // Linear interpolation formula
-    double x1 = xgdat[l], x2 = xgdat[k];
-    double y1 = gdat[l], y2 = gdat[k];
-
-    return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+    return y1 + (y2 - y1) * (point_x - x1) / (x2 - x1);
 }
 
-/**
- * Euclidean distance for DIM dimensions, with optional periodic wrapping.
- */
-template <int DIM>
-double distancePeriodic(const std::array<double, DIM> &a, const std::array<double, DIM> &b,
-                        const std::array<double, DIM> &L, bool periodic) {
-    double sumSq = 0.0;
-    for (int i = 0; i < DIM; i++) {
-        double diff = a[i] - b[i];
-        if (periodic) {
-            // wrap into [-L/2, L/2]
-            if (diff > 0.5 * L[i])
-                diff -= L[i];
-            else if (diff < -0.5 * L[i])
-                diff += L[i];
-        }
-        sumSq += diff * diff;
-    }
-    return std::sqrt(sumSq);
-}
-
-/**
- * A small function to iterate over neighbor cells in a hypercubic domain,
- * given a cull-range for each dimension.
- * It calls `callback(neighborIndex)` for each neighbor index in the domain.
- */
-template <int DIM, typename F>
+template <int DIM, typename FUNC>
 void forNeighbors(const std::array<int, DIM> &centerIdx, const std::array<int, DIM> &range,
-                  F &&callback) {
-    // We do a recursive or iterative approach:
+                  FUNC &&callback) {
+
     std::array<int, DIM> idx;
-    // We'll do a simple "nested for" approach by building the loops recursively:
-    // In real code you'd do something dimension-agnostic.
-    // Here's a dimension-based unrolling for up to 3D. (Pseudocode for general DIM.)
+
     if constexpr (DIM == 1) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; ++i) {
             idx[0] = i;
             callback(idx);
         }
     } else if constexpr (DIM == 2) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
-            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
-                idx[0] = i;
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; ++i) {
+            idx[0] = i;
+            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; ++j) {
                 idx[1] = j;
                 callback(idx);
             }
         }
     } else if constexpr (DIM == 3) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
-            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
-                for (int k = centerIdx[2] - range[2]; k <= centerIdx[2] + range[2]; k++) {
-                    idx[0] = i;
-                    idx[1] = j;
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; ++i) {
+            idx[0] = i;
+            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; ++j) {
+                idx[1] = j;
+                for (int k = centerIdx[2] - range[2]; k <= centerIdx[2] + range[2]; ++k) {
                     idx[2] = k;
                     callback(idx);
                 }
             }
         }
     }
+}
+
+template <int DIM>
+double distancePeriodic(const std::array<double, DIM> &point1,
+                        const std::array<double, DIM> &point2,
+                        const std::array<double, DIM> &length, bool periodic) {
+    double squaredDistance = 0.0;
+    for (int i = 0; i < DIM; ++i) {
+        double diff = point1[i] - point2[i];
+        if (periodic) {
+            // wrap into [-length/2, length/2]
+            if (diff > 0.5 * length[i])
+                diff -= length[i];
+            else if (diff < -0.5 * length[i])
+                diff += length[i];
+        }
+        squaredDistance += diff * diff;
+    }
+    return std::sqrt(squaredDistance);
 }
 
 //============================================================
@@ -111,14 +90,8 @@ Grid<DIM>::Grid(int M_, const std::array<double, DIM> &areaLen,
       area_length(areaLen),
       cell_count(cellCount_),
       periodic(isPeriodic),
-      total_birth_rate(0.0),
-      total_death_rate(0.0),
-      total_population(0),
       rng(seed),
-      time(0.0),
-      event_count(0),
-      realtime_limit(rtimeLimit),
-      realtime_limit_reached(false) {
+      realtime_limit(rtimeLimit) {
     init_time = std::chrono::system_clock::now();
 
     // 1) Copy baseline birth & death for each species
